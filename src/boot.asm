@@ -1,11 +1,28 @@
-[org 0x7c00]      ; BIOS loads the boot sector at memory address 0x7c00
+[BITS 16]           ; Tell assembler we are in 16-bit Real Mode
+[ORG 0x7c00]        ; BIOS loads our code at memory origin address 0x7C00
 
-mov ah, 0x0e      ; BIOS function 0x0e: Teletype (TTY) output
-mov al, 'X'       ; The character we want to print to the screen
-int 0x10          ; Call BIOS video interrupt to render the character
+start:
+    ; 1. Clear interrupt flag and set up segment registers safely
+    cli             ; Disable interrupts while setting up segments
+    xor ax, ax      ; Set AX to 0
+    mov ds, ax      ; Data Segment = 0
+    mov es, ax      ; Extra Segment = 0
+    mov ss, ax      ; Stack Segment = 0
+    mov sp, 0x7c00  ; Stack pointer grows down from 0x7C00
+    sti             ; Re-enable interrupts
+
+    ; 2. Print character using BIOS interrupt 0x10 (Video Services)
+    mov ah, 0x0e    ; AH = 0x0E (Teletype output sub-function)
+    mov al, 'A'     ; AL = Character code to print
+    mov bh, 0x00    ; BH = Page number (0 is standard)
+    mov bl, 0x07    ; BL = Foreground color (light gray on black)
+    int 0x10        ; Trigger BIOS video interrupt
 
 hang:
-    jmp hang      ; Infinite loop to keep the CPU from executing random memory
+    cli             ; Disable interrupts before halting
+    hlt             ; Halt CPU execution until next interrupt
+    jmp hang        ; Safety loop in case an NMI wakes the CPU
 
-times 510-($-$$) db 0 ; Pad the rest of the 510 bytes with zeros
-dw 0xaa55         ; The 2-byte magic boot signature (0x55, 0xAA)
+; 3. Padding and Magic Signature
+times 510 - ($ - $$) db 0   ; Fill remaining space with zeroes up to 510 bytes
+dw 0xAA55                   ; 2-byte magic boot signature (0x55 then 0xAA on disk)
